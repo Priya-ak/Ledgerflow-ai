@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest==8.3.4
+reportlab==4.2.5   # generates the synthetic sample invoices
+aiosmtpd==1.4.6     # local SMTP server for email tests

@@ -1,0 +1,90 @@
+name: Backups
+
+# Nightly encrypted backup of the production database + documents to a private
+# Supabase Storage bucket, and a weekly restore drill into a throwaway PostgreSQL.
+# Required repository secrets: DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, BACKUP_ENCRYPTION_KEY
+on:
+  schedule:
+    - cron: "40 20 * * *"   # 02:10 IST daily
+    - cron: "10 22 * * 0"   # 03:40 IST Monday: restore drill
+  workflow_dispatch:
+    inputs:
+      drill:
+        description: "Also run the restore drill"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backups
+  cancel-in-progress: false
+
+env:
+  APP_ENV: development   # CLI job, serves no HTTP traffic
+  JWT_SECRET: backup-job-unused-jwt-secret-0123456789abcdef
+  SECRET_KEY: backup-job-unused-secret-key-0123456789abcdef
+  STORAGE_PROVIDER: supabase
+  BACKUP_DESTINATION: supabase
+  SUPABASE_STORAGE_BUCKET: ledgerflow-documents
+  BACKUP_BUCKET: ledgerflow-backups
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+
+jobs:
+  backup:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '40 20 * * *'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: backend/requirements.txt }
+      - run: pip install -r requirements.txt
+      - name: Create encrypted snapshot (keep 14)
+        env: { DATABASE_URL: "${{ secrets.DATABASE_URL }}" }
+        run: python -m app.ops.backup create --keep 14
+      - name: Verify latest snapshot
+        run: python -m app.ops.backup verify --snapshot latest
+
+  restore-drill:
+    # Runs after a manual backup, or standalone on the weekly schedule (backup job skipped).
+    needs: [backup]
+    if: >-
+      always() && needs.backup.result != 'failure' &&
+      (github.event.schedule == '10 22 * * 0' || (github.event_name == 'workflow_dispatch' && inputs.drill))
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: drill, POSTGRES_PASSWORD: drill, POSTGRES_DB: drill }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U drill" --health-interval 5s --health-retries 10
+    defaults: { run: { working-directory: backend } }
+    env:
+      DATABASE_URL: postgresql://drill:drill@localhost:5432/drill
+      STORAGE_PROVIDER: local          # restored documents land on the runner, then are discarded
+      LOCAL_STORAGE_PATH: /tmp/drill-docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: backend/requirements.txt }
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - name: Deep-verify and restore the latest snapshot into an empty database
+        run: |
+          python -m app.ops.backup verify --snapshot latest --deep
+          python -m app.ops.backup restore --snapshot latest --yes
+      - name: Sanity-check restored data
+        run: |
+          python - <<'PY'
+          import sqlalchemy as sa
+          e = sa.create_engine("postgresql://drill:drill@localhost:5432/drill")
+          with e.connect() as c:
+              inv = c.execute(sa.text("select count(*) from invoices")).scalar()
+              users = c.execute(sa.text("select count(*) from users")).scalar()
+          print(f"restored invoices={inv} users={users}")
+          assert users > 0
+          PY

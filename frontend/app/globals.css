@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens. Restrained enterprise-finance palette; amounts use tabular numerals. */
+:root {
+  --background: #f6f7f9;
+  --surface: #ffffff;
+  --surface-muted: #f1f4f7;
+  --foreground: #0f172a;
+  --muted-foreground: #5b6779;
+  --border: #e2e7ee;
+  --ring: #0e6273;
+  --primary: #0e5767;
+  --primary-hover: #0b4855;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e6f1f3;
+  --success: #15803d;
+  --success-soft: #e8f5ec;
+  --warning: #b45309;
+  --warning-soft: #fdf3e3;
+  --danger: #be123c;
+  --danger-soft: #fdecef;
+  --info: #1d4ed8;
+  --info-soft: #e8effd;
+  --chart-1: #0e5767;
+  --chart-2: #3b82a6;
+  --chart-3: #84a98c;
+  --chart-4: #d4a24c;
+  --chart-5: #b5525c;
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #0b1220;
+  --surface: #111a2a;
+  --surface-muted: #162133;
+  --foreground: #e6eaf0;
+  --muted-foreground: #96a3b6;
+  --border: #233047;
+  --ring: #49b3c4;
+  --primary: #3aa6b8;
+  --primary-hover: #57b8c8;
+  --primary-foreground: #06202a;
+  --primary-soft: #12303a;
+  --success: #4ade80;
+  --success-soft: #11291c;
+  --warning: #fbbf24;
+  --warning-soft: #2d230e;
+  --danger: #fb7185;
+  --danger-soft: #2f1219;
+  --info: #93b4fb;
+  --info-soft: #152442;
+  --chart-1: #3aa6b8;
+  --chart-2: #7fb3d5;
+  --chart-3: #9fc5a5;
+  --chart-4: #e3b766;
+  --chart-5: #e08891;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --radius-lg: var(--radius);
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+}
+
+@layer base {
+  * { border-color: var(--border); }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { letter-spacing: -0.015em; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::selection { background: var(--primary-soft); }
+}
+
+@utility num { font-variant-numeric: tabular-nums; }

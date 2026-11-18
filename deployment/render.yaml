@@ -1,0 +1,33 @@
+# Render Blueprint for the backend (Docker runtime so Tesseract is available).
+# Free instances spin down after 15 minutes idle and have an EPHEMERAL filesystem:
+# use Supabase Postgres (DATABASE_URL) and STORAGE_PROVIDER=supabase.
+# ClamAV needs ~1 GB RAM and does not fit a free instance: PDF active-content
+# blocking stays on; enable MALWARE_SCANNER=clamav on a plan with >= 2 GB RAM.
+services:
+  - type: web
+    name: ledgerflow-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./deployment/backend.Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - { key: APP_ENV, value: staging }
+      - { key: DEMO_MODE, value: "true" }
+      - { key: SEED_DEMO_ON_START, value: "true" }
+      - { key: STORAGE_PROVIDER, value: supabase }
+      - { key: SUPABASE_STORAGE_BUCKET, value: ledgerflow-documents }
+      - { key: AI_PROVIDER, value: rules }
+      - { key: MALWARE_SCANNER, value: none }
+      - { key: EMAIL_PROVIDER, value: brevo }
+      - { key: TRUSTED_PROXY_HOPS, value: "2" }   # Vercel rewrite + Render load balancer
+      - { key: JWT_SECRET, generateValue: true }
+      - { key: SECRET_KEY, generateValue: true }
+      - { key: ENCRYPTION_KEY, sync: false }      # Fernet key: python -m app.ops.backup keygen
+      - { key: DATABASE_URL, sync: false }
+      - { key: SUPABASE_URL, sync: false }
+      - { key: SUPABASE_SERVICE_ROLE_KEY, sync: false }
+      - { key: BREVO_API_KEY, sync: false }
+      - { key: EMAIL_FROM, sync: false }
+      - { key: FRONTEND_URL, sync: false }

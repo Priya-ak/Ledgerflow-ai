@@ -1,0 +1,54 @@
+# Optional: full stack in containers incl. PostgreSQL and ClamAV virus scanning.
+# Needs ~3 GB free RAM (ClamAV alone uses ~1 GB). Not recommended on a 4 GB laptop.
+# Run from the repository root:  docker compose -f deployment/docker-compose.yml up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ledgerflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ledgerflow
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledgerflow"]
+      interval: 5s
+      retries: 10
+
+  clamav:
+    image: clamav/clamav:stable
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh"]
+      interval: 30s
+      start_period: 120s
+
+  backend:
+    build: { context: .., dockerfile: deployment/backend.Dockerfile }
+    environment:
+      DATABASE_URL: postgresql://ledgerflow:${POSTGRES_PASSWORD}@db:5432/ledgerflow
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      APP_ENV: development
+      STORAGE_PROVIDER: local
+      LOCAL_STORAGE_PATH: /data/storage
+      MALWARE_SCANNER: clamav
+      CLAMAV_HOST: clamav
+      EMAIL_PROVIDER: console
+      SEED_DEMO_ON_START: "true"
+      FRONTEND_URL: http://localhost:3000
+    volumes: [docs:/data/storage]
+    depends_on:
+      db: { condition: service_healthy }
+      clamav: { condition: service_healthy }
+    ports: ["8000:8000"]
+
+  frontend:
+    build: { context: .., dockerfile: deployment/frontend.Dockerfile }
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on: [backend]
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:
+  docs:
